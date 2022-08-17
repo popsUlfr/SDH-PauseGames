@@ -1,0 +1,10 @@
+{
+  "name": "Pause Games",
+  "author": "popsUlfr",
+  "flags": [],
+  "publish": {
+    "tags": ["play", "pause", "sigstop","sigcont"],
+    "description": "Pause and Resume games.",
+    "image": "https://raw.githubusercontent.com/popsUlfr/SDH-PauseGames/main/assets/20220817140824_1.jpg"
+  }
+}
