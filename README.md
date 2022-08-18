@@ -10,7 +10,6 @@ It sends the `SIGSTOP` signal to all the children of the reaper process to stop 
 
 ## Known Issues
 
-- with multiple launched non-steam applications only the first one will trigger the AppLifetimeNotification callback (this means the app might not show up in the "Pause Games" list but a manual reload fixes it)
 - even without the plugin, multiple non-steam games behave weirdly and may not close correctly (or at least Steam gets stuck on the shutdown screen)
 
 ## Future ideas

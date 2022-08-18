@@ -17,6 +17,9 @@ import { FaPause } from "react-icons/fa";
 declare var SteamClient: {
   GameSessions: {
     RegisterForAppLifetimeNotifications: (cb: (app: AppLifetimeObject) => void) => {unregister: () => void}
+  },
+  Apps: {
+    RegisterForGameActionStart: (cb: (actionType: number, gameID: string, status: string) => void) => {unregister: () => void}
   }
 };
 
@@ -25,6 +28,7 @@ interface AppLifetimeObject {
   unAppID: number; // Steam AppID, may be 0 if non-steam game
   nInstanceID: number; // PID of the running or killed process
   bRunning: boolean; // if the game is running or not
+  gameID: string; // extension
 }
 
 interface AppOverviewExt extends AppOverview {
@@ -123,10 +127,13 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({serverAPI}) => {
       }
       setRunningApps(newRunningAppsTmp);
     };
-    refresh({unAppID: 0, nInstanceID: 0, bRunning: false});
-    const {unregister} = SteamClient.GameSessions.RegisterForAppLifetimeNotifications(refresh);
+    refresh({unAppID: 0, nInstanceID: 0, bRunning: false, gameID: ""});
+    const {unregister: unregisterAppLifetimeNotifications} = SteamClient.GameSessions.RegisterForAppLifetimeNotifications(refresh);
+    const {unregister: unregisterGameActionStart} = SteamClient.Apps.RegisterForGameActionStart(({}, gameID, {}) =>
+      refresh({unAppID: 0, nInstanceID: 0, bRunning: true, gameID: gameID}));
     return () => {
-      unregister();
+      unregisterAppLifetimeNotifications();
+      unregisterGameActionStart();
     };
   }, []);
 
