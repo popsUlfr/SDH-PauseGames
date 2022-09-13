@@ -6,7 +6,9 @@ Useful for when you wish to temporarily suspend an application to redirect the c
 
 It sends the `SIGSTOP` signal to all the children of the reaper process to stop the execution and `SIGCONT` to resume them. ([Signal (IPC)](https://en.wikipedia.org/wiki/Signal_(IPC)))
 
-![](assets/20220817140824_1.jpg)
+![](assets/20220913200428_1.jpg)
+
+It also allows to pause all games prior to system suspend which seems to fix some issues with crackling audio or freezing emulators.
 
 ## Known Issues
 

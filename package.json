@@ -1,6 +1,6 @@
 {
   "name": "pause-games",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Pause and Resume games.",
   "scripts": {
     "build": "shx rm -rf dist && rollup -c",
