@@ -7,19 +7,32 @@ import {
   ToggleField,
 } from "decky-frontend-lib";
 import { useEffect, useState, VFC } from "react";
-import { FaPause, FaMoon } from "react-icons/fa";
+import { FaStream, FaPlay, FaPause, FaMoon } from "react-icons/fa";
+import { truncate } from "lodash";
 
 import * as backend from "./backend";
 
 const AppItem: VFC<{ app: backend.AppOverviewExt }> = ({ app }) => {
   const [isPaused, setIsPaused] = useState<boolean>(app.pausegames_is_paused);
+  const [hasStickyPauseState, setHasStickyPauseState] = useState<boolean>(
+    backend.getStickyPauseState(app.pausegames_instanceid)
+  );
 
   return (
     <ToggleField
       checked={isPaused}
       key={app.appid}
-      label={app.display_name}
-      description={isPaused ? "Paused" : "Running"}
+      label={
+        <div>
+          {isPaused ? (
+            <FaPause color={hasStickyPauseState ? "deepskyblue" : undefined} />
+          ) : (
+            <FaPlay color={hasStickyPauseState ? "deepskyblue" : undefined} />
+          )}{" "}
+          {truncate(app.display_name, { length: 18 })}
+        </div>
+      }
+      tooltip={isPaused ? "Paused" : "Running"}
       disabled={!app.pausegames_instanceid}
       icon={
         (app.icon_data && app.icon_data_format) || app.icon_hash ? (
@@ -48,6 +61,12 @@ const AppItem: VFC<{ app: backend.AppOverviewExt }> = ({ app }) => {
           app.pausegames_instanceid
         );
         setIsPaused(app.pausegames_is_paused);
+        if ((await backend.loadSettings()).autoPause) {
+          backend.setStickyPauseState(app.pausegames_instanceid);
+          setHasStickyPauseState(
+            backend.getStickyPauseState(app.pausegames_instanceid)
+          );
+        }
       }}
     />
   );
@@ -56,11 +75,13 @@ const AppItem: VFC<{ app: backend.AppOverviewExt }> = ({ app }) => {
 const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
   const [runningApps, setRunningApps] = useState<backend.AppOverviewExt[]>([]);
   const [pauseBeforeSuspend, setPauseBeforeSuspend] = useState<boolean>(false);
+  const [autoPause, setAutoPause] = useState<boolean>(false);
 
   useEffect(() => {
-    backend
-      .loadSettings()
-      .then((s) => setPauseBeforeSuspend(s.pauseBeforeSuspend));
+    backend.loadSettings().then((s) => {
+      setPauseBeforeSuspend(s.pauseBeforeSuspend);
+      setAutoPause(s.autoPause);
+    });
     const unregisterRunningAppsChange = backend.registerForRunningAppsChange(
       (runningApps: backend.AppOverviewExt[]) => {
         setRunningApps(runningApps);
@@ -78,11 +99,31 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
         <ToggleField
           checked={pauseBeforeSuspend}
           label="Pause before Suspend"
-          description="Pause all games before suspend and resume those not explicitely paused."
+          tooltip="Pause all games before suspend and resume those not explicitely paused."
           icon={<FaMoon />}
-          onChange={(state) => {
-            backend.saveSettings({ pauseBeforeSuspend: state });
+          onChange={async (state) => {
+            const settings = await backend.loadSettings();
+            settings.pauseBeforeSuspend = state;
+            await backend.saveSettings(settings);
             setPauseBeforeSuspend(state);
+          }}
+        />
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <ToggleField
+          checked={autoPause}
+          label="Pause on focus loss"
+          tooltip="Pauses apps not in focus when switching between them."
+          icon={<FaStream />}
+          onChange={async (state) => {
+            const settings = await backend.loadSettings();
+            settings.autoPause = state;
+            await backend.saveSettings(settings);
+            backend.resetStickyPauseStates();
+            const runningApps = await backend.runningApps();
+            setAutoPause(state);
+            setRunningApps([]); // without this it won't update
+            setRunningApps(runningApps);
           }}
         />
       </PanelSectionRow>
@@ -92,7 +133,7 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
               <AppItem app={app} />
             </PanelSectionRow>
           ))
-        : "Started applications that can be paused will appear in here."}
+        : "Applications will appear here."}
     </PanelSection>
   );
 };
@@ -100,6 +141,7 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
 export default definePlugin((serverApi: ServerAPI) => {
   backend.setServerAPI(serverApi);
 
+  const unregisterFocusChangeHandler = backend.setupFocusChangeHandler();
   const unregisterSuspendResumeHandler = backend.setupSuspendResumeHandler();
 
   return {
@@ -107,6 +149,7 @@ export default definePlugin((serverApi: ServerAPI) => {
     content: <Content serverAPI={serverApi} />,
     icon: <FaPause />,
     onDismount() {
+      unregisterFocusChangeHandler();
       unregisterSuspendResumeHandler();
     },
   };

@@ -58,15 +58,27 @@ class Plugin:
             return False
 
     async def terminate(self, pid: int) -> bool:
-        try:
-            return subprocess.run(["kill", "-SIGTERM", str(pid)], stderr=sys.stderr, stdout=sys.stdout).returncode == 0
-        except:
+        pids = get_all_children(pid)
+        if pids:
+            command = ["kill", "-SIGTERM"]
+            command.extend(pids)
+            try:
+                return subprocess.run(command, stderr=sys.stderr, stdout=sys.stdout).returncode == 0
+            except:
+                return False
+        else:
             return False
 
     async def kill(self, pid: int) -> bool:
-        try:
-            return subprocess.run(["kill", "-SIGKILL", str(pid)], stderr=sys.stderr, stdout=sys.stdout).returncode == 0
-        except:
+        pids = get_all_children(pid)
+        if pids:
+            command = ["kill", "-SIGKILL"]
+            command.extend(pids)
+            try:
+                return subprocess.run(command, stderr=sys.stderr, stdout=sys.stdout).returncode == 0
+            except:
+                return False
+        else:
             return False
 
     async def pid_from_appid(self, appid: int) -> int:
@@ -81,17 +93,28 @@ class Plugin:
         return int(pid)
     
     async def appid_from_pid(self, pid: int) -> int:
-        args = []
-        try:
-            with open(f"/proc/{pid}/cmdline", "r") as f:
-                args = f.read().split('\0')
-        except:
-            return 0
-        for arg in args:
-            arg = arg.strip()
-            if arg.startswith("AppId="):
-                arg = arg.lstrip("AppId=")
-                if not arg:
-                    return 0
-                return int(arg)
+        # search upwards for the process that has the AppId= command line argument
+        while pid and pid != 1:
+            try:
+                args = []
+                with open(f"/proc/{pid}/cmdline", "r") as f:
+                    args = f.read().split('\0')
+                for arg in args:
+                    arg = arg.strip()
+                    if arg.startswith("AppId="):
+                        arg = arg.lstrip("AppId=")
+                        if arg:
+                            return int(arg)
+            except:
+                pass
+            try:
+                strppid = ""
+                with subprocess.Popen(["ps", "--pid", str(pid), "-o", "ppid="], stdout=subprocess.PIPE) as p:
+                    strppid = p.stdout.read().strip()
+                if strppid:
+                    pid = int(strppid)
+                else:
+                    break
+            except:
+                break
         return 0
