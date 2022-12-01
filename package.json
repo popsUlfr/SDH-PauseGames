@@ -1,7 +1,7 @@
 {
   "name": "pause-games",
   "version": "0.3.0",
-  "description": "Pause and Resume games.",
+  "description": "Pause/Resume games to redirect resources and even play/stop apps that don't natively have an immediate option to do so.",
   "scripts": {
     "build": "shx rm -rf dist && rollup -c",
     "watch": "rollup -c -w",
@@ -16,7 +16,14 @@
     "plugin",
     "steam-deck",
     "deck",
-    "pause"
+    "play",
+    "pause",
+    "sigstop",
+    "sigcont",
+    "suspend",
+    "resume",
+    "sleep",
+    "stop"
   ],
   "author": "Philipp Richter <richterphilipp.pops@gmail.com>",
   "license": "GPL-3.0",
