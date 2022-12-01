@@ -99,7 +99,7 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
         <ToggleField
           checked={pauseBeforeSuspend}
           label="Pause before Suspend"
-          tooltip="Pause all games before suspend and resume those not explicitely paused."
+          tooltip="Pause all apps before suspend and resume those not explicitely paused."
           icon={<FaMoon />}
           onChange={async (state) => {
             const settings = await backend.loadSettings();
@@ -127,13 +127,34 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
           }}
         />
       </PanelSectionRow>
-      {runningApps.length
-        ? runningApps.map((app) => (
-            <PanelSectionRow key={app.appid}>
-              <AppItem app={app} />
-            </PanelSectionRow>
-          ))
-        : "Applications will appear here."}
+      {runningApps.length ? (
+        runningApps.map((app) => (
+          <PanelSectionRow key={app.appid}>
+            <AppItem app={app} />
+          </PanelSectionRow>
+        ))
+      ) : (
+        <div>
+          <strong>
+            <em>- Pause before Suspend</em>
+          </strong>
+          <br />
+          Pauses all apps before system suspend. May fix audio issues.
+          <br />
+          <strong>
+            <em>- Pause on focus loss</em>
+          </strong>
+          <br />
+          Pauses apps not in focus automatically when switching between them.
+          Changing the state of an app in this mode will sticky them{" "}
+          <FaPlay color="deepskyblue" />, <FaPause color="deepskyblue" />. To
+          reset, disable and re-enable <em>Pause on focus loss</em>.
+          <br />
+          <strong>
+            <em>Applications will appear here.</em>
+          </strong>
+        </div>
+      )}
     </PanelSection>
   );
 };
