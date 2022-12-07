@@ -5,6 +5,7 @@ import {
   ServerAPI,
   staticClasses,
   ToggleField,
+  Router,
 } from "decky-frontend-lib";
 import { useEffect, useState, VFC } from "react";
 import { FaStream, FaPlay, FaPause, FaMoon } from "react-icons/fa";
@@ -13,10 +14,29 @@ import { truncate } from "lodash";
 import * as backend from "./backend";
 
 const AppItem: VFC<{ app: backend.AppOverviewExt }> = ({ app }) => {
-  const [isPaused, setIsPaused] = useState<boolean>(app.pausegames_is_paused);
-  const [hasStickyPauseState, setHasStickyPauseState] = useState<boolean>(
-    backend.getStickyPauseState(app.pausegames_instanceid)
-  );
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [hasStickyPauseState, setHasStickyPauseState] =
+    useState<boolean>(false);
+
+  useEffect(() => {
+    backend.getAppMetaData(Number(app.appid)).then((appMD) => {
+      setIsPaused(appMD.is_paused);
+      setHasStickyPauseState(appMD.sticky_state);
+    });
+    const unregisterPauseStateChange = backend.registerPauseStateChange(
+      Number(app.appid),
+      setIsPaused
+    );
+    const unregisterStickyPauseStateChange =
+      backend.registerStickyPauseStateChange(
+        Number(app.appid),
+        setHasStickyPauseState
+      );
+    return () => {
+      unregisterPauseStateChange();
+      unregisterStickyPauseStateChange();
+    };
+  }, []);
 
   return (
     <ToggleField
@@ -33,7 +53,6 @@ const AppItem: VFC<{ app: backend.AppOverviewExt }> = ({ app }) => {
         </div>
       }
       tooltip={isPaused ? "Paused" : "Running"}
-      disabled={!app.pausegames_instanceid}
       icon={
         (app.icon_data && app.icon_data_format) || app.icon_hash ? (
           <img
@@ -50,22 +69,19 @@ const AppItem: VFC<{ app: backend.AppOverviewExt }> = ({ app }) => {
         ) : null
       }
       onChange={async (state) => {
+        const appMD = await backend.getAppMetaData(Number(app.appid));
         if (
           !(await (state
-            ? backend.pause(app.pausegames_instanceid)
-            : backend.resume(app.pausegames_instanceid)))
+            ? backend.pause(appMD.instanceid)
+            : backend.resume(appMD.instanceid)))
         ) {
           return;
         }
-        app.pausegames_is_paused = await backend.is_paused(
-          app.pausegames_instanceid
-        );
-        setIsPaused(app.pausegames_is_paused);
+        appMD.is_paused = state;
+        setIsPaused(state);
         if ((await backend.loadSettings()).autoPause) {
-          backend.setStickyPauseState(app.pausegames_instanceid);
-          setHasStickyPauseState(
-            backend.getStickyPauseState(app.pausegames_instanceid)
-          );
+          backend.setStickyPauseState(Number(app.appid));
+          setHasStickyPauseState(true);
         }
       }}
     />
@@ -73,7 +89,9 @@ const AppItem: VFC<{ app: backend.AppOverviewExt }> = ({ app }) => {
 };
 
 const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
-  const [runningApps, setRunningApps] = useState<backend.AppOverviewExt[]>([]);
+  const [runningApps, setRunningApps] = useState<backend.AppOverviewExt[]>(
+    Router.RunningApps as backend.AppOverviewExt[]
+  );
   const [pauseBeforeSuspend, setPauseBeforeSuspend] = useState<boolean>(false);
   const [autoPause, setAutoPause] = useState<boolean>(false);
 
@@ -87,7 +105,6 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
         setRunningApps(runningApps);
       }
     );
-    backend.runningApps().then((runningApps) => setRunningApps(runningApps));
     return () => {
       unregisterRunningAppsChange();
     };
@@ -119,11 +136,8 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
             const settings = await backend.loadSettings();
             settings.autoPause = state;
             await backend.saveSettings(settings);
-            backend.resetStickyPauseStates();
-            const runningApps = await backend.runningApps();
             setAutoPause(state);
-            setRunningApps([]); // without this it won't update
-            setRunningApps(runningApps);
+            backend.resetStickyPauseStates();
           }}
         />
       </PanelSectionRow>

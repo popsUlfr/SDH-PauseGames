@@ -49,9 +49,8 @@ declare var SteamClient: {
 // object passed to the callback of SteamClient.GameSessions.RegisterForAppLifetimeNotifications()
 export interface LifetimeNotificationExt extends LifetimeNotification {
   unAppID: number; // Steam AppID, may be 0 if non-steam game
-  nInstanceID: number; // PID of the running or killed process, it's the pid of the reaper not the first child
+  nInstanceID: number; // PID of the running or killed process, it's the pid of the reaper for non-steam apps or of the first child if a steam app
   bRunning: boolean; // if the game is running or not
-  pausegames_gameID: string; // extension
 }
 
 export interface AppOverviewExt extends AppOverview {
@@ -63,9 +62,15 @@ export interface AppOverviewExt extends AppOverview {
   icon_data_format: string; // base, image type without "image/" (e.g.: jpg, png)
   icon_hash: string; // base, url hash to fetch the icon for steam games (e.g.: "/assets/" + appid + "_icon.jpg?v=" + icon_hash)
   m_gameid: string; // base, id for non-steam games
-  pausegames_instanceid: number; // an extension to keep track of the pid of the reaper process
-  pausegames_is_paused: boolean; // extension to keep track of a paused application
-  pausegames_last_pause_state: boolean; // extension to keep track the state before suspend
+}
+
+export interface AppOverviewExtPG {
+  instanceid: number; // keep track of the pid of the reaper process
+  is_paused: boolean; // keep track of a paused application
+  last_pause_state: boolean; // keep track the state before suspend
+  pause_state_callbacks: ((state: boolean) => void)[]; // pause state callbacks
+  sticky_state: boolean; // keep track of the sticky state
+  sticky_state_callbacks: ((state: boolean) => void)[]; // sticky state callbacks
 }
 
 interface FocusChangeEvent {
@@ -148,48 +153,93 @@ export async function saveSettings(s: Settings): Promise<void> {
   localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(s));
 }
 
-export async function runningApps(): Promise<AppOverviewExt[]> {
-  return Promise.all(
-    (Router.RunningApps as AppOverviewExt[]).map(async (a) => {
-      if (!a.pausegames_instanceid && Number(a.appid || 0) !== 0) {
-        const pid = await pid_from_appid(Number(a.appid));
-        if (pid !== 0) {
-          a.pausegames_instanceid = pid;
-        }
-      }
-      if (a.pausegames_instanceid) {
-        a.pausegames_is_paused = await is_paused(a.pausegames_instanceid);
-      } else {
-        a.pausegames_is_paused = false;
-      }
-      return a;
-    })
-  );
-}
-
-let stickyPauseStateMap: {
-  [index: number]: boolean;
+let appMetaDataMap: {
+  [appid: number]: AppOverviewExtPG;
 } = {};
 
-export function setStickyPauseState(pid: number) {
-  stickyPauseStateMap[pid] = true;
+export async function getAppMetaData(appid: number) {
+  if (appMetaDataMap[appid]) {
+    return appMetaDataMap[appid];
+  }
+  const pid = await pid_from_appid(appid);
+  return (appMetaDataMap[appid] = {
+    instanceid: pid,
+    is_paused: await is_paused(pid),
+    pause_state_callbacks: [],
+    last_pause_state: false,
+    sticky_state: false,
+    sticky_state_callbacks: [],
+  });
 }
 
-export function removeStickyPauseState(pid: number) {
-  delete stickyPauseStateMap[pid];
+export async function setStickyPauseState(appid: number) {
+  const appMD = await getAppMetaData(appid);
+  appMD.sticky_state = true;
+  appMD.sticky_state_callbacks.forEach((cb) => cb(true));
 }
 
-export function getStickyPauseState(pid: number) {
-  return stickyPauseStateMap[pid];
+export function resetStickyPauseState(appid: number) {
+  const appMD = appMetaDataMap[appid];
+  if (!appMD) return;
+  appMD.sticky_state = false;
+  appMD.sticky_state_callbacks.forEach((cb) => cb(false));
 }
 
 export function resetStickyPauseStates() {
-  stickyPauseStateMap = {};
+  Object.values(appMetaDataMap).forEach((appMD) => {
+    appMD.sticky_state = false;
+    appMD.sticky_state_callbacks.forEach((cb) => cb(false));
+  });
 }
 
-let runningAppsChangeCallback: (
-  runningApps: AppOverviewExt[]
-) => void = () => {};
+export function registerPauseStateChange(
+  appid: number,
+  cb: (state: boolean) => void
+) {
+  getAppMetaData(appid).then((appMD) => {
+    appMD.pause_state_callbacks.push(cb);
+  });
+  return () => {
+    const appMD = appMetaDataMap[appid];
+    if (!appMD) return;
+    const i = appMD.pause_state_callbacks.findIndex((v) => v === cb);
+    if (i >= 0) {
+      appMD.pause_state_callbacks.splice(i, 1);
+    }
+  };
+}
+
+export function registerStickyPauseStateChange(
+  appid: number,
+  cb: (state: boolean) => void
+) {
+  getAppMetaData(appid).then((appMD) => {
+    appMD.sticky_state_callbacks.push(cb);
+  });
+  return () => {
+    const appMD = appMetaDataMap[appid];
+    if (!appMD) return;
+    const i = appMD.sticky_state_callbacks.findIndex((v) => v === cb);
+    if (i >= 0) {
+      appMD.sticky_state_callbacks.splice(i, 1);
+    }
+  };
+}
+
+export function removeAppMetaData(appid: number) {
+  resetStickyPauseState(appid);
+  delete appMetaDataMap[appid];
+}
+
+export function cleanupAppMetaData() {
+  const rApps = Router.RunningApps;
+  const appids = Object.keys(appMetaDataMap).filter(
+    (appid) => rApps.findIndex((a) => Number(a.appid) === Number(appid)) < 0
+  );
+  appids.forEach((appid) => {
+    removeAppMetaData(Number(appid));
+  });
+}
 
 export function registerForRunningAppsChange(
   cb: (runningApps: AppOverviewExt[]) => void
@@ -199,115 +249,38 @@ export function registerForRunningAppsChange(
       async ({}, {}, {}, status: string | undefined) => {
         if (status !== "Completed") return;
         // at this point the application should be up and running
-        const runningApps: AppOverviewExt[] = await Promise.all(
-          (Router.RunningApps as AppOverviewExt[]).map(async (a) => {
-            if (!a.pausegames_instanceid && Number(a.appid || 0) !== 0) {
-              for (let i = 0; i < 6; i++) {
-                const pid = await pid_from_appid(Number(a.appid));
-                if (pid !== 0) {
-                  a.pausegames_instanceid = pid;
-                  break;
-                }
-                await sleep(100);
-              }
-            }
-            if (Number(a.appid || 0) === 0 && a.pausegames_instanceid) {
-              const appid = await appid_from_pid(a.pausegames_instanceid);
-              if (appid !== 0) {
-                a.appid = String(appid);
-              }
-            }
-            if (a.pausegames_instanceid) {
-              a.pausegames_is_paused = await is_paused(a.pausegames_instanceid);
-            }
-            return a;
-          })
-        );
-        return cb(runningApps);
+        return cb(Router.RunningApps as AppOverviewExt[]);
       }
     );
   const { unregister: unregisterAppLifetimeNotifications } =
     SteamClient.GameSessions.RegisterForAppLifetimeNotifications((app) => {
       if (app.bRunning) {
-        const fApp = (Router.RunningApps as AppOverviewExt[]).find(
-          (a) =>
-            (a.pausegames_instanceid &&
-              app.nInstanceID &&
-              a.pausegames_instanceid === app.nInstanceID) ||
-            (Number(a.appid || 0) !== 0 &&
-              app.unAppID &&
-              Number(a.appid || 0) === app.unAppID) ||
-            (a.m_gameid &&
-              a.m_gameid !== "0" &&
-              app.pausegames_gameID &&
-              app.pausegames_gameID !== "0" &&
-              a.m_gameid === app.pausegames_gameID)
-        );
-        if (fApp) {
-          if (Number(fApp.appid || 0) === 0 && app.unAppID !== 0) {
-            fApp.appid = String(app.unAppID);
-          }
-          if (app.pausegames_gameID && app.pausegames_gameID !== "0") {
-            fApp.m_gameid = app.pausegames_gameID;
-          }
-          if (app.nInstanceID) {
-            // nInstanceID is the pid of the reaper process which holds the AppID command line flag
-            fApp.pausegames_instanceid = app.nInstanceID;
-          }
-        }
+        cb(Router.RunningApps as AppOverviewExt[]);
       } else {
-        const runningApps: AppOverviewExt[] = [];
-        (Router.RunningApps as AppOverviewExt[]).forEach((a) => {
-          if (
-            (a.pausegames_instanceid &&
-              app.nInstanceID &&
-              a.pausegames_instanceid === app.nInstanceID) ||
-            (Number(a.appid || 0) !== 0 &&
-              app.unAppID &&
-              Number(a.appid) === app.unAppID) ||
-            (a.m_gameid &&
-              a.m_gameid !== "0" &&
-              app.pausegames_gameID &&
-              app.pausegames_gameID !== "0" &&
-              a.m_gameid === app.pausegames_gameID)
-          ) {
-            return;
-          }
-          runningApps.push(a);
+        sleep(500).then(() => {
+          cleanupAppMetaData();
+          cb(Router.RunningApps as AppOverviewExt[]);
         });
-        cb(runningApps);
       }
     });
 
-  runningAppsChangeCallback = cb;
   return () => {
-    runningAppsChangeCallback = () => {};
     unregisterGameActionTaskChange();
     unregisterAppLifetimeNotifications();
   };
 }
 
 export function setupSuspendResumeHandler(): () => void {
-  let lastRunningApps: AppOverviewExt[] = [];
-
   const { unregister: unregisterOnSuspendRequest } =
     SteamClient.System.RegisterForOnSuspendRequest(async () => {
       if (!(await loadSettings()).pauseBeforeSuspend) return;
-      lastRunningApps = await Promise.all(
+      await Promise.all(
         (Router.RunningApps as AppOverviewExt[]).map(async (a) => {
-          if (!a.pausegames_instanceid && Number(a.appid || 0) !== 0) {
-            const pid = await pid_from_appid(Number(a.appid));
-            if (pid !== 0) {
-              a.pausegames_instanceid = pid;
-            }
-          }
-          if (!a.pausegames_instanceid) {
-            return a;
-          }
-          a.pausegames_is_paused = await is_paused(a.pausegames_instanceid);
-          a.pausegames_last_pause_state = a.pausegames_is_paused;
-          if (!a.pausegames_is_paused) {
-            await pause(a.pausegames_instanceid);
+          const appMD = await getAppMetaData(Number(a.appid));
+          appMD.is_paused = await is_paused(appMD.instanceid);
+          appMD.last_pause_state = appMD.is_paused;
+          if (!appMD.is_paused) {
+            appMD.is_paused = await pause(appMD.instanceid);
           }
           return a;
         })
@@ -318,23 +291,15 @@ export function setupSuspendResumeHandler(): () => void {
     SteamClient.System.RegisterForOnResumeFromSuspend(async () => {
       if (!(await loadSettings()).pauseBeforeSuspend) return;
       await Promise.all(
-        lastRunningApps.map(async (a) => {
-          if (!a.pausegames_instanceid && Number(a.appid || 0) !== 0) {
-            const pid = await pid_from_appid(Number(a.appid));
-            if (pid !== 0) {
-              a.pausegames_instanceid = pid;
-            }
+        (Router.RunningApps as AppOverviewExt[]).map(async (a) => {
+          const appMD = await getAppMetaData(Number(a.appid));
+          appMD.is_paused = await is_paused(appMD.instanceid);
+          if (appMD.is_paused && !appMD.last_pause_state) {
+            appMD.is_paused = !(await resume(appMD.instanceid));
           }
-          if (!a.pausegames_instanceid) {
-            return;
-          }
-          a.pausegames_is_paused = await is_paused(a.pausegames_instanceid);
-          if (a.pausegames_is_paused && !a.pausegames_last_pause_state) {
-            await resume(a.pausegames_instanceid);
-          }
+          return a;
         })
       );
-      lastRunningApps = [];
     });
 
   return () => {
@@ -371,44 +336,34 @@ export function setupFocusChangeHandler(): () => void {
         } else {
           return;
         }
-        let hasStateChange: boolean = false;
-        const runningApps = await Promise.all(
+        await Promise.all(
           (Router.RunningApps as AppOverviewExt[]).map(async (a) => {
-            if (!a.pausegames_instanceid && Number(a.appid || 0) !== 0) {
-              const pid = await pid_from_appid(Number(a.appid));
-              if (pid !== 0) {
-                a.pausegames_instanceid = pid;
-              }
-            }
-            if (!a.pausegames_instanceid) {
-              return a;
-            }
+            const appMD = await getAppMetaData(Number(a.appid));
             // if the sticky pause state is on for this app don't do anything to it
-            if (getStickyPauseState(a.pausegames_instanceid)) {
+            if (appMD.sticky_state) {
               return a;
             }
-            a.pausegames_is_paused = await is_paused(a.pausegames_instanceid);
-            if (a.pausegames_instanceid === fce.focusedApp.pid) {
+            appMD.is_paused = await is_paused(appMD.instanceid);
+            if (appMD.instanceid === fce.focusedApp.pid) {
               // this is the focused app
-              if (a.pausegames_is_paused) {
-                a.pausegames_is_paused = !(await resume(
-                  a.pausegames_instanceid
-                ));
-                hasStateChange = true;
+              if (appMD.is_paused) {
+                appMD.is_paused = !(await resume(appMD.instanceid));
+                appMD.pause_state_callbacks.forEach((cb) =>
+                  cb(appMD.is_paused)
+                );
               }
             } else {
               // the app is not in focus
-              if (!a.pausegames_is_paused) {
-                a.pausegames_is_paused = await pause(a.pausegames_instanceid);
-                hasStateChange = true;
+              if (!appMD.is_paused) {
+                appMD.is_paused = await pause(appMD.instanceid);
+                appMD.pause_state_callbacks.forEach((cb) =>
+                  cb(appMD.is_paused)
+                );
               }
             }
             return a;
           })
         );
-        if (hasStateChange) {
-          runningAppsChangeCallback(runningApps);
-        }
       }, 500)
     );
 
@@ -425,7 +380,9 @@ export function setupFocusChangeHandler(): () => void {
     SteamClient.GameSessions.RegisterForAppLifetimeNotifications((app) => {
       if (app.bRunning) return;
       // cleanup old sticky states
-      removeStickyPauseState(app.nInstanceID);
+      // app.nInstanceID is the pid of the reaper for non-steam apps but the pid of the first child for steam apps
+      // a sleep to cleanup once the running apps are updated
+      sleep(500).then(cleanupAppMetaData);
     });
 
   return () => {
