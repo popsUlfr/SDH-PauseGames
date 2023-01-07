@@ -6,7 +6,7 @@ import {
   sleep,
   LifetimeNotification,
 } from "decky-frontend-lib";
-import { throttle } from "lodash";
+import { debounce, throttle } from "lodash";
 
 const LOCAL_STORAGE_KEY = "pause-games-settings";
 
@@ -42,9 +42,16 @@ declare var SteamClient: {
       RegisterForFocusChangeEvents: (cb: (fce: FocusChangeEvent) => void) => {
         unregister: () => void;
       };
+      RegisterForSystemKeyEvents: (cb: (key: SystemKeyEvent) => void) => void;
     };
   };
 };
+
+export interface SystemKeyEvent {
+  eKey: number;
+  nControllerIndex: number;
+  nAppId: number;
+}
 
 // object passed to the callback of SteamClient.GameSessions.RegisterForAppLifetimeNotifications()
 export interface LifetimeNotificationExt extends LifetimeNotification {
@@ -74,6 +81,7 @@ export interface AppOverviewExtPG {
 }
 
 interface FocusChangeEvent {
+  rgFocusable: any[];
   focusedApp: {
     appid: number; // Steam AppID
     pid: number; // pid of the focused process
@@ -85,10 +93,12 @@ interface FocusChangeEvent {
 export interface Settings {
   pauseBeforeSuspend: boolean;
   autoPause: boolean;
+  overlayPause: boolean;
 }
 export const NullSettings: Settings = {
   pauseBeforeSuspend: false,
   autoPause: false,
+  overlayPause: false,
 } as const;
 
 var serverAPI: ServerAPI | undefined = undefined;
@@ -311,16 +321,47 @@ export function setupSuspendResumeHandler(): () => void {
 export function setupFocusChangeHandler(): () => void {
   let appIsStartingUp: boolean = false;
   let lastPid = 0;
+  let lastAppid = 0;
+  let validKeyEvent: SystemKeyEvent | null = null;
+  let keyEventFunction = (e: SystemKeyEvent) => {
+    const cancelDebouncedEvent = debounce(() => {
+      validKeyEvent = null;
+    }, 1000);
+    if (e.eKey === 0) {
+      // Have not found any race condition issues with this approach since the key event fires long before focus change
+      validKeyEvent = e;
+      cancelDebouncedEvent();
+    } else {
+      cancelDebouncedEvent.cancel();
+      validKeyEvent = null;
+    }
+  };
+  const unregisterSystemKeyEvents = () => {
+    keyEventFunction = () => {};
+  };
+  SteamClient.System.UI.RegisterForSystemKeyEvents((e) => keyEventFunction(e));
+
   const { unregister: unregisterFocusChangeEvents } =
     SteamClient.System.UI.RegisterForFocusChangeEvents(
       throttle(async (fce: FocusChangeEvent) => {
         // don't try anything while an application is launching or it could pause it midlaunch
         if (appIsStartingUp) return;
         // skip if we already got such an event before
-        if (fce.focusedApp.pid === lastPid) return;
+        if (
+          fce.focusedApp.pid === lastPid &&
+          fce.focusedApp.appid === lastAppid
+        )
+          return;
         lastPid = fce.focusedApp.pid;
+        lastAppid = fce.focusedApp.appid;
+
         if (!(await loadSettings()).autoPause) return;
         // AppID 769 is the Steam Overlay or a non-steam app
+        // Key event must be if the user pressed the 'STEAM' button. Don't pause for other buttons
+        const overlayPause =
+          fce.focusedApp.appid === 769 &&
+          validKeyEvent?.eKey === 0 &&
+          (await loadSettings()).overlayPause;
         if (!fce.focusedApp.appid || fce.focusedApp.appid === 769) {
           const appid = await appid_from_pid(fce.focusedApp.pid);
           if (appid) {
@@ -344,7 +385,7 @@ export function setupFocusChangeHandler(): () => void {
               return a;
             }
             appMD.is_paused = await is_paused(appMD.instanceid);
-            if (appMD.instanceid === fce.focusedApp.pid) {
+            if (!overlayPause && appMD.instanceid === fce.focusedApp.pid) {
               // this is the focused app
               if (appMD.is_paused) {
                 appMD.is_paused = !(await resume(appMD.instanceid));
@@ -353,7 +394,7 @@ export function setupFocusChangeHandler(): () => void {
                 );
               }
             } else {
-              // the app is not in focus
+              // the app is not in focus or the overlay is on
               if (!appMD.is_paused) {
                 appMD.is_paused = await pause(appMD.instanceid);
                 appMD.pause_state_callbacks.forEach((cb) =>
@@ -386,6 +427,7 @@ export function setupFocusChangeHandler(): () => void {
     });
 
   return () => {
+    unregisterSystemKeyEvents();
     unregisterFocusChangeEvents();
     unregisterGameActionTaskChange();
     unregisterAppLifetimeNotifications();

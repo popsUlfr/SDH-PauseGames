@@ -94,11 +94,13 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
   );
   const [pauseBeforeSuspend, setPauseBeforeSuspend] = useState<boolean>(false);
   const [autoPause, setAutoPause] = useState<boolean>(false);
+  const [overlayPause, setOverlayPause] = useState<boolean>(false);
 
   useEffect(() => {
     backend.loadSettings().then((s) => {
       setPauseBeforeSuspend(s.pauseBeforeSuspend);
       setAutoPause(s.autoPause);
+      setOverlayPause(s.overlayPause);
     });
     const unregisterRunningAppsChange = backend.registerForRunningAppsChange(
       (runningApps: backend.AppOverviewExt[]) => {
@@ -128,6 +130,7 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
       </PanelSectionRow>
       <PanelSectionRow>
         <ToggleField
+          bottomSeparator={autoPause ? "none" : "standard"}
           checked={autoPause}
           label="Pause on focus loss"
           tooltip="Pauses apps not in focus when switching between them."
@@ -141,6 +144,22 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
           }}
         />
       </PanelSectionRow>
+      {autoPause && (
+        <PanelSectionRow>
+          <ToggleField
+            checked={overlayPause}
+            label=" ↳ Also on overlay"
+            tooltip="Pause apps when interacting with Steam Overlay."
+            onChange={async (state) => {
+              const settings = await backend.loadSettings();
+              settings.overlayPause = state;
+              await backend.saveSettings(settings);
+              setOverlayPause(state);
+            }}
+            disabled={!autoPause}
+          />
+        </PanelSectionRow>
+      )}
       {runningApps.length ? (
         runningApps.map((app) => (
           <PanelSectionRow key={app.appid}>
@@ -148,7 +167,7 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
           </PanelSectionRow>
         ))
       ) : (
-        <div>
+        <div style={{ fontSize: "80%" }}>
           <strong>
             <em>- Pause before Suspend</em>
           </strong>
@@ -163,6 +182,13 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
           Changing the state of an app in this mode will sticky them{" "}
           <FaPlay color="deepskyblue" />, <FaPause color="deepskyblue" />. To
           reset, disable and re-enable <em>Pause on focus loss</em>.
+          <br />
+          <strong>
+            <em>- Also on overlay</em>
+          </strong>
+          <br />
+          Pauses apps when interacting with Steam Overlay. Requires pause on
+          focus loss to be enabled.
           <br />
           <strong>
             <em>Applications will appear here.</em>
