@@ -8,16 +8,19 @@ Since used RAM and VRAM won't be able to be recovered from paused apps you might
 
 It sends the `SIGSTOP` signal to all the children of the reaper process to stop the execution and `SIGCONT` to resume them. ([Signal (IPC)](https://en.wikipedia.org/wiki/Signal_(IPC)))
 
-![](assets/20221201115246_1.jpg)
-![](assets/20221201115613_1.jpg)
+![](assets/20230112202158_1.png)
+![](assets/20230112200757_1.jpg)
 
 It also allows to pause all games prior to system suspend which seems to fix some issues with crackling audio or freezing emulators.
 
 The **Pause on focus loss** feature will automatically pause apps that are not in focus when switching between them. A bit like the Xbox quick-suspend/resume feature (without the dump to disk functionality unfortunately). If you manually change the state of an app (pause/resume) in this mode it will be stickied and not change state automatically anymore on focus change (depicted by a blue play/pause icon). To reset the stickied states, disable and re-enable **Pause on focus loss**.
 
+In addition to **Pause on focus loss**, **Also on overlay** will also pause apps when the Steam Overlay is on (by pressing the **STEAM** button).
+
 ## Known Issues
 
-- even without the plugin, multiple non-steam games behave weirdly and may not close correctly (or at least Steam gets stuck on the shutdown screen)
+- some games may not like being stopped and resumed too many times over extended periods of play while others work without issues. Make sure to save often if you intend to switch between games with the **Pause on focus loss** feature enabled.
+- some games may stop responding to input once they are resumed which could be an issue related to the Steam Client getting confused between different control layouts used by the running games. Sometimes force resuming or closing another running game can fix the input issue.
 
 ## Future ideas
 
@@ -29,3 +32,8 @@ The **Pause on focus loss** feature will automatically pause apps that are not i
 ## Usage Examples
 
 - https://www.reddit.com/r/SteamDeck/comments/z6n047/32_gig_swap_file_pause_game_plugin_xbox_quick/
+- https://www.youtube.com/watch?v=_yBSRyvyqg4
+
+## Tips
+
+- If you use yuzu (https://yuzu-emu.org/) and want to enable the **Pause on focus loss** feature, make sure to enable **Pause emulation when in background** under **General** Settings in yuzu in order to prevent potentially freezing the emulator completely. You can also Pause/Resume the emulation by binding **F4** to a key and press it just before pausing or after resuming the game with the plugin.

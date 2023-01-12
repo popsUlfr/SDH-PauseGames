@@ -3,8 +3,8 @@
   "author": "popsUlfr",
   "flags": [],
   "publish": {
-    "tags": ["play", "pause", "sigstop", "sigcont", "suspend", "resume", "sleep", "stop"],
+    "tags": ["play", "pause", "sigstop", "sigcont", "suspend", "resume", "sleep", "stop", "quick-resume"],
     "description": "Pause/Resume games to redirect resources and even play/stop apps that don't natively have an immediate option to do so.",
-    "image": "https://raw.githubusercontent.com/popsUlfr/SDH-PauseGames/main/assets/20221201115246_1.jpg"
+    "image": "https://raw.githubusercontent.com/popsUlfr/SDH-PauseGames/main/assets/20230112202158_1.png"
   }
 }

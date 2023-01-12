@@ -24,7 +24,8 @@
     "suspend",
     "resume",
     "sleep",
-    "stop"
+    "stop",
+    "quick-resume"
   ],
   "author": "Philipp Richter <richterphilipp.pops@gmail.com>",
   "license": "GPL-3.0",
