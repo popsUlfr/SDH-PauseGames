@@ -172,14 +172,16 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
             <em>- Pause before Suspend</em>
           </strong>
           <br />
-          Pauses all apps before system suspend. May fix audio issues.
+          Pauses all apps before system suspend.
+          <br />
+          May fix audio issues.
           <br />
           <strong>
             <em>- Pause on focus loss</em>
           </strong>
           <br />
-          Pauses apps not in focus automatically when switching between them.
-          Changing the state of an app in this mode will sticky them{" "}
+          Automatically pauses apps not in focus while switching between them.
+          Manually setting the state of an app in this mode will sticky them{" "}
           <FaPlay color="deepskyblue" />, <FaPause color="deepskyblue" />. To
           reset, disable and re-enable <em>Pause on focus loss</em>.
           <br />
@@ -187,8 +189,7 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({}) => {
             <em>- Also on overlay</em>
           </strong>
           <br />
-          Pauses apps when interacting with Steam Overlay. Requires pause on
-          focus loss to be enabled.
+          Additionally pauses apps while interacting with the Steam Overlay.
           <br />
           <strong>
             <em>Applications will appear here.</em>
