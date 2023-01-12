@@ -1,4 +1,8 @@
+import os
 import sys
+# append py_modules to PYTHONPATH
+sys.path.append(os.path.dirname(os.path.realpath(__file__))+"/py_modules")
+
 import subprocess
 
 def get_all_children(pid: int) -> [str]:
@@ -23,6 +27,10 @@ def get_all_children(pid: int) -> [str]:
 class Plugin:
     # Asyncio-compatible long-running code, executed in a task when the plugin is loaded
     async def _main(self):
+        pass
+
+    # Function called first during the unload process, utilize this to handle your plugin being removed
+    async def _unload(self):
         pass
 
     async def is_paused(self, pid: int) -> bool:
