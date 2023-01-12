@@ -6,10 +6,10 @@ import {
   staticClasses,
   ToggleField,
   Router,
+  Marquee,
 } from "decky-frontend-lib";
 import { useEffect, useState, VFC } from "react";
 import { FaStream, FaPlay, FaPause, FaMoon } from "react-icons/fa";
-import { truncate } from "lodash";
 
 import * as backend from "./backend";
 
@@ -44,12 +44,12 @@ const AppItem: VFC<{ app: backend.AppOverviewExt }> = ({ app }) => {
       key={app.appid}
       label={
         <div>
+          <Marquee>{app.display_name}</Marquee>
           {isPaused ? (
             <FaPause color={hasStickyPauseState ? "deepskyblue" : undefined} />
           ) : (
             <FaPlay color={hasStickyPauseState ? "deepskyblue" : undefined} />
-          )}{" "}
-          {truncate(app.display_name, { length: 18 })}
+          )}
         </div>
       }
       tooltip={isPaused ? "Paused" : "Running"}
