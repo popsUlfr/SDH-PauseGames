@@ -349,10 +349,17 @@ export function setupFocusChangeHandler(): () => void {
         // skip if we already got such an event before
         if (
           fce.focusedApp.pid === lastPid &&
-          fce.focusedApp.appid === lastAppid
+          fce.focusedApp.appid === lastAppid &&
+          !(validKeyEvent?.eKey === 0)
         )
           return;
         lastPid = fce.focusedApp.pid;
+        if (
+          fce.focusedApp.appid === 769 &&
+          lastAppid === 769 &&
+          !(validKeyEvent?.eKey === 0)
+        )
+          return;
         lastAppid = fce.focusedApp.appid;
 
         if (!(await loadSettings()).autoPause) return;
