@@ -9,7 +9,7 @@ specifiers:
   '@types/lodash': ^4.14.191
   '@types/react': 16.14.0
   '@types/webpack': ^5.28.0
-  decky-frontend-lib: ^3.18.9
+  decky-frontend-lib: ^3.18.10
   lodash: ^4.17.21
   react-icons: ^4.7.1
   rollup: ^2.79.1
@@ -19,7 +19,7 @@ specifiers:
   typescript: ^4.9.4
 
 dependencies:
-  decky-frontend-lib: 3.18.9
+  decky-frontend-lib: 3.18.10
   lodash: 4.17.21
   react-icons: 4.7.1
 
@@ -426,8 +426,8 @@ packages:
     resolution: {integrity: sha512-DJR/VvkAvSZW9bTouZue2sSxDwdTN92uHjqeKVm+0dAqdfNykRzQ95tay8aXMBAAPpUiq4Qcug2L7neoRh2Egw==}
     dev: true
 
-  /decky-frontend-lib/3.18.9:
-    resolution: {integrity: sha512-QNMHDDAHfL+JpvVVte4Vj8iyOqvz/2iyFEknbJ1/Kz7aPTygFUsJp5mq1FDVvVNjfCYfF3fYAaZVqZu3d7pCEA==}
+  /decky-frontend-lib/3.18.10:
+    resolution: {integrity: sha512-2mgbA3sSkuwQR/FnmhXVrcW6LyTS95IuL6muJAmQCruhBvXapDtjk1TcgxqMZxFZwGD1IPnemPYxHZll6IgnZw==}
     dev: false
 
   /deepmerge/4.2.2:

@@ -3,7 +3,6 @@
   "version": "0.4.1",
   "description": "Pause/Resume games to redirect resources and even play/stop apps that don't natively have an immediate option to do so.",
   "scripts": {
-    "prepare": "touch requirements.txt && pip3 install --upgrade -r requirements.txt -t py_modules",
     "build": "shx rm -rf dist && rollup -c",
     "watch": "rollup -c -w",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -49,7 +48,7 @@
     "typescript": "^4.9.4"
   },
   "dependencies": {
-    "decky-frontend-lib": "^3.18.9",
+    "decky-frontend-lib": "^3.18.10",
     "lodash": "^4.17.21",
     "react-icons": "^4.7.1"
   },
