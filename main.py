@@ -1,11 +1,7 @@
-import os
 import sys
-# append py_modules to PYTHONPATH
-sys.path.append(os.path.dirname(os.path.realpath(__file__))+"/py_modules")
-
 import subprocess
 
-def get_all_children(pid: int) -> [str]:
+def get_all_children(pid: int) -> list[str]:
     pids = []
     tmpPids = [str(pid)]
     try:
@@ -31,6 +27,10 @@ class Plugin:
 
     # Function called first during the unload process, utilize this to handle your plugin being removed
     async def _unload(self):
+        pass
+
+    # Migrations that should be performed before entering `_main()`.
+    async def _migration(self):
         pass
 
     async def is_paused(self, pid: int) -> bool:
