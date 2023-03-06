@@ -167,6 +167,10 @@ let appMetaDataMap: {
   [appid: number]: AppOverviewExtPG;
 } = {};
 
+// will be true if system will suspend
+// and be false after system resume
+let systemWillSuspend: boolean = false;
+
 export async function getAppMetaData(appid: number) {
   if (appMetaDataMap[appid]) {
     return appMetaDataMap[appid];
@@ -283,6 +287,7 @@ export function registerForRunningAppsChange(
 export function setupSuspendResumeHandler(): () => void {
   const { unregister: unregisterOnSuspendRequest } =
     SteamClient.System.RegisterForOnSuspendRequest(async () => {
+      systemWillSuspend = true;
       if (!(await loadSettings()).pauseBeforeSuspend) return;
       await Promise.all(
         (Router.RunningApps as AppOverviewExt[]).map(async (a) => {
@@ -299,6 +304,7 @@ export function setupSuspendResumeHandler(): () => void {
 
   const { unregister: unregisterOnResumeFromSuspend } =
     SteamClient.System.RegisterForOnResumeFromSuspend(async () => {
+      systemWillSuspend = false;
       if (!(await loadSettings()).pauseBeforeSuspend) return;
       await Promise.all(
         (Router.RunningApps as AppOverviewExt[]).map(async (a) => {
@@ -346,6 +352,8 @@ export function setupFocusChangeHandler(): () => void {
       throttle(async (fce: FocusChangeEvent) => {
         // don't try anything while an application is launching or it could pause it midlaunch
         if (appIsStartingUp) return;
+        // do nothing if system is suspending
+        if (systemWillSuspend) return;
         // skip if we already got such an event before
         if (
           fce.focusedApp.pid === lastPid &&
