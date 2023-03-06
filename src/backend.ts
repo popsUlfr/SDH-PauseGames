@@ -78,7 +78,6 @@ export interface AppOverviewExtPG {
   pause_state_callbacks: ((state: boolean) => void)[]; // pause state callbacks
   sticky_state: boolean; // keep track of the sticky state
   sticky_state_callbacks: ((state: boolean) => void)[]; // sticky state callbacks
-  pause_by_suspend: boolean; // app is paused by suspend
 }
 
 interface FocusChangeEvent {
@@ -180,7 +179,6 @@ export async function getAppMetaData(appid: number) {
     last_pause_state: false,
     sticky_state: false,
     sticky_state_callbacks: [],
-    pause_by_suspend: false,
   });
 }
 
@@ -292,7 +290,6 @@ export function setupSuspendResumeHandler(): () => void {
           appMD.is_paused = await is_paused(appMD.instanceid);
           appMD.last_pause_state = appMD.is_paused;
           if (!appMD.is_paused) {
-            appMD.pause_by_suspend = true;
             appMD.is_paused = await pause(appMD.instanceid);
           }
           return a;
@@ -308,7 +305,6 @@ export function setupSuspendResumeHandler(): () => void {
           const appMD = await getAppMetaData(Number(a.appid));
           appMD.is_paused = await is_paused(appMD.instanceid);
           if (appMD.is_paused && !appMD.last_pause_state) {
-            appMD.pause_by_suspend = false;
             appMD.is_paused = !(await resume(appMD.instanceid));
           }
           return a;
@@ -392,7 +388,7 @@ export function setupFocusChangeHandler(): () => void {
           (Router.RunningApps as AppOverviewExt[]).map(async (a) => {
             const appMD = await getAppMetaData(Number(a.appid));
             // if the sticky pause state is on for this app don't do anything to it
-            if (appMD.sticky_state || appMD.pause_by_suspend) {
+            if (appMD.sticky_state) {
               return a;
             }
             appMD.is_paused = await is_paused(appMD.instanceid);
