@@ -1,6 +1,6 @@
 {
   "name": "pause-games",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Pause/Resume games to redirect resources and even play/stop apps that don't natively have an immediate option to do so.",
   "scripts": {
     "build": "shx rm -rf dist && rollup -c",
