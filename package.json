@@ -48,7 +48,7 @@
     "typescript": "^4.9.5"
   },
   "dependencies": {
-    "decky-frontend-lib": "^3.19.1",
+    "decky-frontend-lib": "^3.24.5",
     "lodash": "^4.17.21",
     "react-icons": "^4.8.0"
   },
