@@ -1,0 +1,89 @@
+name: Release
+
+# Build the Decky plugin and attach a ready-to-install zip to a GitHub Release
+# whenever a version tag is pushed, e.g.:
+#   git tag v0.4.3 && git push origin v0.4.3
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build and release (e.g. v0.4.3)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Resolve tag / plugin name
+        id: meta
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          NAME="$(node -p "require('./plugin.json').name")"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      # Version is read from the "packageManager" field in package.json,
+      # keeping CI in lockstep with the pnpm used to generate pnpm-lock.yaml.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # pnpm 11 requires Node >= 22.13
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Build
+        run: pnpm build
+
+      - name: Package plugin zip
+        id: package
+        run: |
+          set -euo pipefail
+          NAME="${{ steps.meta.outputs.name }}"
+          TAG="${{ steps.meta.outputs.tag }}"
+          STAGE="$RUNNER_TEMP/stage"
+          PLUG="$STAGE/$NAME"
+          rm -rf "$STAGE"
+          mkdir -p "$PLUG/dist" "$PLUG/py_modules"
+          cp plugin.json package.json main.py LICENSE README.md "$PLUG/"
+          cp dist/index.js "$PLUG/dist/"
+          [ -d py_modules ] && cp -R py_modules/. "$PLUG/py_modules/" || true
+          [ -d assets ] && cp -R assets "$PLUG/assets" || true
+          ZIP="$GITHUB_WORKSPACE/PauseGames-$TAG.zip"
+          ( cd "$STAGE" && zip -r -X "$ZIP" "$NAME" -x '*.DS_Store' >/dev/null )
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          unzip -l "$ZIP"
+
+      - name: Create / update release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.meta.outputs.tag }}"
+          ZIP="${{ steps.package.outputs.zip }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ZIP" --clobber
+          else
+            gh release create "$TAG" "$ZIP" \
+              --title "Pause Games $TAG" \
+              --generate-notes
+          fi

@@ -167,23 +167,40 @@ let appMetaDataMap: {
   [appid: number]: AppOverviewExtPG;
 } = {};
 
+// in-flight getAppMetaData() promises keyed by appid.
+// We cache the promise (not just the resolved value) so that concurrent
+// callers for the same appid share a single metadata object. Otherwise each
+// concurrent call would race past the cache check, build its own object, and
+// callbacks registered on the loser objects would be silently dropped.
+let appMetaDataInflight: {
+  [appid: number]: Promise<AppOverviewExtPG>;
+} = {};
+
 // will be true if system will suspend
 // and be false after system resume
 let systemWillSuspend: boolean = false;
 
-export async function getAppMetaData(appid: number) {
+export function getAppMetaData(appid: number): Promise<AppOverviewExtPG> {
   if (appMetaDataMap[appid]) {
-    return appMetaDataMap[appid];
+    return Promise.resolve(appMetaDataMap[appid]);
   }
-  const pid = await pid_from_appid(appid);
-  return (appMetaDataMap[appid] = {
-    instanceid: pid,
-    is_paused: await is_paused(pid),
-    pause_state_callbacks: [],
-    last_pause_state: false,
-    sticky_state: false,
-    sticky_state_callbacks: [],
-  });
+  if (!appMetaDataInflight[appid]) {
+    appMetaDataInflight[appid] = (async () => {
+      const pid = await pid_from_appid(appid);
+      const appMD: AppOverviewExtPG = {
+        instanceid: pid,
+        is_paused: await is_paused(pid),
+        pause_state_callbacks: [],
+        last_pause_state: false,
+        sticky_state: false,
+        sticky_state_callbacks: [],
+      };
+      appMetaDataMap[appid] = appMD;
+      delete appMetaDataInflight[appid];
+      return appMD;
+    })();
+  }
+  return appMetaDataInflight[appid];
 }
 
 export async function setStickyPauseState(appid: number) {
@@ -329,19 +346,25 @@ export function setupFocusChangeHandler(): () => void {
   let lastPid = 0;
   let lastAppid = 0;
   let validKeyEvent: SystemKeyEvent | null = null;
+  // A single debounce instance shared across calls so that cancel() can
+  // actually cancel a pending clear and repeated key presses coalesce.
+  // (Recreating the debounce inside the handler made both behaviours no-ops.)
+  const clearValidKeyEventDebounced = debounce(() => {
+    validKeyEvent = null;
+  }, 1000);
   let keyEventFunction = (e: SystemKeyEvent) => {
-    const cancelDebouncedEvent = debounce(() => {
-      validKeyEvent = null;
-    }, 1000);
     if (e.eKey === 0) {
       // Have not found any race condition issues with this approach since the key event fires long before focus change
       validKeyEvent = e;
-      cancelDebouncedEvent();
+      clearValidKeyEventDebounced();
     } else {
-      cancelDebouncedEvent.cancel();
+      clearValidKeyEventDebounced.cancel();
       validKeyEvent = null;
     }
   };
+  // NOTE: RegisterForSystemKeyEvents exposes no unregister, so we can only
+  // neutralize the handler by swapping keyEventFunction to a no-op below.
+  // The underlying listener stays registered for the lifetime of the page.
   const unregisterSystemKeyEvents = () => {
     keyEventFunction = () => {};
   };
@@ -377,20 +400,27 @@ export function setupFocusChangeHandler(): () => void {
           fce.focusedApp.appid === 769 &&
           validKeyEvent?.eKey === 0 &&
           (await loadSettings()).overlayPause;
-        if (!fce.focusedApp.appid || fce.focusedApp.appid === 769) {
-          const appid = await appid_from_pid(fce.focusedApp.pid);
-          if (appid) {
-            fce.focusedApp.appid = appid;
+        // When overlay-pausing we pause every app regardless of which one is
+        // focused, so there's no need to resolve the focused app. Doing so
+        // would call appid_from_pid() on the overlay/steamwebhelper process,
+        // which has no AppId= ancestor, return 0, and bail out before pausing
+        // anything -- defeating the overlay-pause feature entirely.
+        if (!overlayPause) {
+          if (!fce.focusedApp.appid || fce.focusedApp.appid === 769) {
+            const appid = await appid_from_pid(fce.focusedApp.pid);
+            if (appid) {
+              fce.focusedApp.appid = appid;
+            } else {
+              return;
+            }
+          }
+          // fce.focusedApp.pid is not the pid of the reaper but of the first child
+          const pid = await pid_from_appid(fce.focusedApp.appid);
+          if (pid) {
+            fce.focusedApp.pid = pid;
           } else {
             return;
           }
-        }
-        // fce.focusedApp.pid is not the pid of the reaper but of the first child
-        const pid = await pid_from_appid(fce.focusedApp.appid);
-        if (pid) {
-          fce.focusedApp.pid = pid;
-        } else {
-          return;
         }
         await Promise.all(
           (Router.RunningApps as AppOverviewExt[]).map(async (a) => {

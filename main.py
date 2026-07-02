@@ -34,9 +34,18 @@ class Plugin:
         pass
 
     async def is_paused(self, pid: int) -> bool:
+        # pause/resume act on the whole descendant tree, so the paused state
+        # must be determined from that same tree, not just the first child.
+        pids = get_all_children(pid)
+        if not pids:
+            return False
         try:
-            with subprocess.Popen(["ps", "--ppid", str(pid), "-o", "stat="], stdout=subprocess.PIPE) as p:
-                return p.stdout.readline().lstrip().startswith(b'T')
+            with subprocess.Popen(["ps", "-o", "stat=", "-p", b",".join(pids)], stdout=subprocess.PIPE) as p:
+                states = [line.strip() for line in p.stdout.readlines() if line.strip()]
+            if not states:
+                return False
+            # 'T' = stopped (SIGSTOP), considered paused only if all are stopped
+            return all(state.startswith(b'T') for state in states)
         except:
             return False
 
@@ -110,7 +119,9 @@ class Plugin:
                 for arg in args:
                     arg = arg.strip()
                     if arg.startswith("AppId="):
-                        arg = arg.lstrip("AppId=")
+                        # strip the exact prefix; lstrip() would strip any
+                        # leading characters in the set {A,p,I,d,=}, not the prefix
+                        arg = arg[len("AppId="):]
                         if arg:
                             return int(arg)
             except:
