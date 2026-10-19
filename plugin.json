@@ -1,10 +1,11 @@
 {
   "name": "Pause Games",
-  "author": "popsUlfr",
+  "author": "popsUlfr & wynn1212 & AkazaRenn",
   "flags": [],
+  "api_version": 1,
   "publish": {
     "tags": ["play", "pause", "sigstop", "sigcont", "suspend", "resume", "sleep", "stop", "quick-resume"],
     "description": "Pause/Resume games to redirect resources and even play/stop apps that don't natively have an immediate option to do so.",
-    "image": "https://raw.githubusercontent.com/popsUlfr/SDH-PauseGames/main/assets/20230112202158_1.png"
+    "image": "https://raw.githubusercontent.com/wynn1212/SDH-PauseGames/main/assets/20240708214008_1.jpg"
   }
 }

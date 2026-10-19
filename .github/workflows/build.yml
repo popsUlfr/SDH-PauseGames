@@ -1,0 +1,85 @@
+name: Build Plugin
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches: ['*']
+
+jobs:
+  build:
+    name: Build plugin
+    runs-on: ubuntu-latest
+    env:
+      TIMESTAMP: ""
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@main
+      with:
+        fetch-depth: 0
+        submodules: "recursive"
+
+    - name: Create variables
+      run: |
+        echo "TIMESTAMP=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+        echo "VERSION=$(jq -r '.version' package.json)" >> $GITHUB_ENV
+
+    - name: Append hash to plugin version
+      run: |
+        echo "::notice::This run was triggered by a commit. Appending the commit hash to the plugin version."
+
+        package_file="package.json"
+
+        sha=$(cut -c1-7 <<< "${{ github.event.pull_request.head.sha || github.sha }}")
+        new_version="${VERSION}-${sha}"
+
+        echo "::notice::Going from ${VERSION} to ${new_version}"
+
+        tmp=$(mktemp)
+        jq --arg newversion "${new_version}" '.version = $newversion' ${package_file} > "${tmp}"
+        mv "${tmp}" "${package_file}"
+
+        echo "::endgroup::"
+
+    - uses: pnpm/action-setup@master
+
+    - name: Update pnpm lockfile
+      run: |
+        $(which pnpm) install --lockfile-only
+
+    - name: Download Decky CLI
+      run: |
+        mkdir -p "$(pwd)"/cli
+        curl -L -o "$(pwd)"/cli/decky "https://github.com/SteamDeckHomebrew/cli/releases/latest/download/decky-linux-x86_64"
+        chmod +x "$(pwd)"/cli/decky
+
+    - name: Build plugin
+      run: |
+        # Run the CLI as root to get around Docker's weird permissions
+        sudo .vscode/build.sh
+        sudo chown -R $(whoami) out
+        unzip -l out/*.zip
+
+    - name: Release
+      uses: softprops/action-gh-release@master
+      if: github.event_name == 'push'
+      with:
+        tag_name: ${{ env.TIMESTAMP }}
+        prerelease: true
+        files: out/*.zip
+
+    - name: Unzip plugin
+      run: |
+        for file in out/*.zip; do
+          echo "Unzipping ${file}"
+          unzip -qq "$file" -d out
+        done
+        tree out
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@main
+      with:
+        name: output
+        path: out/*/

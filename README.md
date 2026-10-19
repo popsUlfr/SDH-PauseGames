@@ -1,5 +1,13 @@
 # Pause Games
 
+Original Repo: https://github.com/popsUlfr/SDH-PauseGames
+
+This is a continuation of **popsUlfr's Pause Games** plugin, updated to support the latest Decky Loader and new features.
+
+A big thanks to **popsUlfr** for developing this amazing plugin!
+
+***
+
 A Steam Deck plugin for the [Decky Plugin Loader](https://github.com/SteamDeckHomebrew/decky-loader) that makes it possible to pause and resume games even for those that don't have an immediate pause option.
 
 Useful for when you wish to temporarily suspend an application in order to redirect the cpu and gpu ressources to another without having to close it.
@@ -8,14 +16,44 @@ Since used RAM and VRAM won't be able to be recovered from paused apps you might
 
 It sends the `SIGSTOP` signal to all the children of the reaper process to stop the execution and `SIGCONT` to resume them. ([Signal (IPC)](https://en.wikipedia.org/wiki/Signal_(IPC)))
 
-![](assets/20230112202158_1.png)
-![](assets/20230112200757_1.jpg)
+![](assets/20240708214008_1.jpg)
+![](assets/20240709000911_1.jpg)
 
 It also allows to pause all games prior to system suspend which seems to fix some issues with crackling audio or freezing emulators.
 
-The **Pause on focus loss** feature will automatically pause apps that are not in focus when switching between them. A bit like the Xbox quick-suspend/resume feature (without the dump to disk functionality unfortunately). If you manually change the state of an app (pause/resume) in this mode it will be stickied and not change state automatically anymore on focus change (depicted by a blue play/pause icon). To reset the stickied states, disable and re-enable **Pause on focus loss**.
+The **Pause on focus loss** feature will automatically pause apps that are not in focus when switching between them. A bit like the Xbox quick-suspend/resume feature (without the dump to disk functionality unfortunately). If you manually change the state of an app (pause/resume) in this mode it will be stickied and not change state automatically anymore on focus change (depicted by a blue play/pause icon) until
+it is manually changed back.
 
 In addition to **Pause on focus loss**, **Also on overlay** will also pause apps when the Steam Overlay is on (by pressing the **STEAM** button).
+
+## Usage
+
+![](assets/pausegames_usage.jpg)
+
+- To manually pause or resume the game, press the game icon with the pause/play symbol in the **Pause Games list**.
+- To change which game should pause when **Pause on focus loss** is enabled, toggle the switch to the right of the **Pause Games list**.
+
+## Install
+
+Recommended: You can find the Pause Games plugin in the official Decky store.
+
+> Disclaimer: Only install plugins from sources you completely trust. Always verify that downloaded files originate from this official repository, or double-check that the URL entered is exact and correct before proceeding.
+
+If you want to install the latest version directly from github, download the latest version from the [release page](https://github.com/wynn1212/SDH-PauseGames/releases) and install it via:
+
+```
+Decky Settings -> Developer -> Install Plugin from ZIP File
+(You may need to enable Developer Mode first under General settings)
+```
+
+Alternatively, you can go to Decky Settings -> Developer -> Install Plugin from URL -> Type the following URL
+(You may need to enable Developer Mode first under General settings)
+
+```
+https://github.com/wynn1212/SDH-PauseGames/releases/latest/download/SDH-PauseGames.zip
+```
+
+And click "Install"
 
 ## Known Issues
 
@@ -36,4 +74,4 @@ In addition to **Pause on focus loss**, **Also on overlay** will also pause apps
 
 ## Tips
 
-- If you use yuzu (https://yuzu-emu.org/) and want to enable the **Pause on focus loss** feature, make sure to enable **Pause emulation when in background** under **General** Settings in yuzu in order to prevent potentially freezing the emulator completely. You can also Pause/Resume the emulation by binding **F4** to a key and press it just before pausing or after resuming the game with the plugin.
+- If you use S emulator and want to enable the **Pause on focus loss** feature, make sure to enable **Pause emulation when in background** under **General** Settings in S emulator in order to prevent potentially freezing the emulator completely. You can also Pause/Resume the emulation by binding **F4** to a key and press it just before pausing or after resuming the game with the plugin.
